@@ -10,15 +10,16 @@ from rest_framework.validators import UniqueValidator
 from allauth.account.adapter import get_adapter
 from django.core.exceptions import ValidationError as DjangoValidationError
 from allauth.account.utils import setup_user_email
-from .serializerfields import phonefield
+from .fields import phonefield
 from .exceptions import (
     AccountDisabledException,
     AccountNotRegisteredException,
     InvalidCredentialsException,
 )
-from .models import Address, PhoneNumber, Profile
-from .validators import validate_email_or_phonenumber
+from .models import Address, PhoneNumber, Profile,PassowrdReset
+from .validators import validate_email_or_phonenumber ,validate_phone_number
 import re
+from django.contrib.auth.forms import SetPasswordForm
 User = get_user_model()
 
 
@@ -87,7 +88,7 @@ class UserRegistrationSerializer(RegisterSerializer):
         """
         from allauth.account.utils import user_email, user_field, user_username
         from allauth.account import app_settings
-
+        adapter = get_adapter()
         first_name = user_field(user, "first_name")
         last_name = user_field(user, "last_name")
         email = user_email(user)
@@ -96,7 +97,7 @@ class UserRegistrationSerializer(RegisterSerializer):
             user_username(
                 user,
                 username
-                or self.generate_unique_username(
+                or adapter.generate_unique_username(
                     [first_name, last_name, email, username,phone, "user"]
                 ),
             )
@@ -107,7 +108,7 @@ class UserRegistrationSerializer(RegisterSerializer):
         signup form.
         """
         from allauth.account.utils import user_email, user_field, user_username
-
+        adapter = get_adapter()
         data = form.cleaned_data
         first_name = data.get("first_name")
         last_name = data.get("last_name")
@@ -115,7 +116,7 @@ class UserRegistrationSerializer(RegisterSerializer):
         username = data.get("username")
         phone_number = data.get("phone_number")
         if PhoneNumber.objects.filter(phone_number=phone_number).exists():
-            phone_number = None
+            raise serializers.ValidationError("phone number already exists")
         user_email(user, email)
         user_username(user, username)
         if first_name:
@@ -124,6 +125,12 @@ class UserRegistrationSerializer(RegisterSerializer):
             user_field(user, "last_name", last_name)
         if "password1" in data:
             user.set_password(data["password1"])
+            try:
+                adapter.clean_password(self.cleaned_data['password1'], user=user)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(
+                    detail=serializers.as_serializer_error(exc)
+            )
         else:
             user.set_unusable_password()
         self.populate_username(request, user,phone_number)
@@ -140,15 +147,7 @@ class UserRegistrationSerializer(RegisterSerializer):
         adapter = get_adapter()
         user = adapter.new_user(request)
         self.cleaned_data = self.get_cleaned_data()
-        user = self.save_user(request, user, self, commit=False)
-        if "password1" in self.cleaned_data:
-            try:
-                adapter.clean_password(self.cleaned_data['password1'], user=user)
-            except DjangoValidationError as exc:
-                raise serializers.ValidationError(
-                    detail=serializers.as_serializer_error(exc)
-            )
-        user.save()
+        user = self.save_user(request, user, self, commit=True)
         self.custom_signup(request, user)
         setup_user_email(request, user, [])
         return user
@@ -247,27 +246,28 @@ class CustompasswordResetSerializer(PasswordResetSerializer):
     email = serializers.CharField(validators = [validate_email_or_phonenumber],required=True) 
 
     def validate_email(self, validated_data):
-        email_or_phonenumber = validated_data.get("email")
+        email_or_phonenumber = self.initial_data.get("email")
         value = email_or_phone(email_or_phonenumber)
         email = value.get("email")
         phone = value.get("phone")
-        if email:    
+        self.email_or_phone = {}
+        if email:
         # Create PasswordResetForm with the serializer
             self.reset_form = self.password_reset_form_class(data=self.initial_data)
             if not self.reset_form.is_valid():
                 raise serializers.ValidationError(self.reset_form.errors)
-            self.validated_data["user_email"]= email
+            self.email_or_phone["email"] = email
             return validated_data
         else:
-            queryset = User.objects.filter(phone__phone_number=phone)
-            if not queryset.exists():
+            queryset = User.objects.get(phone__phone_number=phone)
+            if not queryset:
                 raise serializers.ValidationError("phonenumber is not registered")
             if not queryset.phone.is_verified:
                 raise serializers.ValidationError("phonenumber is not verified")
-            self.validated_data["phone"]= phone
+            self.email_or_phone["phone"] = phone
  
     def save(self):
-        if self.validated_data.get("user_email"):
+        if self.email_or_phone.get("user_email"):
             if 'allauth' in settings.INSTALLED_APPS:
                 from allauth.account.forms import default_token_generator
             else:
@@ -285,18 +285,59 @@ class CustompasswordResetSerializer(PasswordResetSerializer):
             opts.update(self.get_email_options())
             self.reset_form.save(**opts)
         else:
-            phone = self.validated_data.get("phone")
-            sms_verification = PhoneNumber.objects.filter(
-                phone_number=phone, is_verified=True
-            ).first()
-
-            sms_verification.send_passwordreset_code()
+            phone = self.email_or_phone.get("phone")
+            user = User.objects.get(phone__phone_number=phone)
+            queryset = None
+            try:
+                queryset = PassowrdReset.objects.get(user=user)
+            except:
+                queryset = PassowrdReset.objects.create(user=user)
+            self.validated_data["phone"] = phone
+            queryset.send_passwordreset_code()
             
 
+class VerifyResetCodeSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(validators = [validate_phone_number],required=True)
+    otp = serializers.CharField(max_length=settings.TOKEN_LENGTH)
+
+    def validate_phone_number(self, value):
+        queryset = User.objects.get(phone__phone_number=value)
+        if not queryset:
+            raise serializers.ValidationError("phonenumber is not registered")
+        self.user = queryset
+        return value
+    def validate(self, validated_data):
+        otp = validated_data.get("otp")
+        try:
+            queryset = PassowrdReset.objects.get(user = self.user)
+        except:
+            raise serializers.ValidationError("that number did not issue a reset password request")
+        queryset.check_passwordreset_code(security_code=otp)
+        validated_data["user"] = self.user
+        return validated_data
+
+class NewPasswordViewSerializer(serializers.Serializer):
+    new_password1 = serializers.CharField(max_length=128)
+    new_password2 = serializers.CharField(max_length=128)
+    set_password_form_class = SetPasswordForm
+
+    set_password_form = None
 
 
+    def validate(self, attrs):
+        request = self.context.get('request')
+        self.set_password_form = self.set_password_form_class(
+            user=request.user, data=attrs,
+        )
 
-def email_or_phone(self,value):
+        if not self.set_password_form.is_valid():
+            raise serializers.ValidationError(self.set_password_form.errors)
+        return attrs
+
+    def save(self):
+        self.set_password_form.save()
+
+def email_or_phone(value):
     phone_regex = r"^\+?[1-9]\d{1,14}$"
     if re.match(phone_regex,value):
         return {"phone":value}

@@ -1,4 +1,5 @@
 from dj_rest_auth.views import LogoutView
+from dj_rest_auth.utils import jwt_encode
 from rest_framework import serializers
 from requests.exceptions import HTTPError
 from dj_rest_auth.registration.serializers import SocialLoginSerializer
@@ -7,7 +8,7 @@ from django.conf import settings
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import RegisterView, SocialLoginView
-from dj_rest_auth.views import LoginView
+from dj_rest_auth.views import LoginView,sensitive_post_parameters_m
 from django.contrib.auth import get_user_model 
 from django.utils.translation import gettext as _
 from rest_framework import permissions, status
@@ -23,13 +24,15 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from .models import Address, PhoneNumber, Profile
-from .permissions import IsUserAddressOwner, IsUserProfileOwner
+from .permissions import IsUserAddressOwner, IsUserProfileOwner,ResetPassword
 from .serializers import (
     PhoneNumberSerializer,
     UserLoginSerializer,
     UserRegistrationSerializer,
     VerifyPhoneNumberSerialzier,
-    CustompasswordResetSerializer
+    CustompasswordResetSerializer,
+    VerifyResetCodeSerializer,
+    NewPasswordViewSerializer
 )
 
 
@@ -44,9 +47,9 @@ class UserRegisterationAPIView(RegisterView):
     
     def get_serializer_class(self):
         if settings.LOGIN_WITH_PHONE_NUMBER:
-            self.serializer_class = UserRegistrationSerializer
+            return UserRegistrationSerializer
         else:
-            self.serializer_class = api_settings.REGISTER_SERIALIZER
+            return api_settings.REGISTER_SERIALIZER
 
     
     def create(self, request, *args, **kwargs):
@@ -78,6 +81,8 @@ class UserRegisterationAPIView(RegisterView):
 
                 if res.status_code == 200:
                     response_data = {"detail": _("Verification SMS sent.")}
+                else:
+                    return res
         else :
             response_data = {"detail": _("Verification e-mail sent.")}
 
@@ -129,6 +134,33 @@ class VerifyPhoneNumberAPIView(GenericAPIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class VerifyResetCodeView(GenericAPIView):
+    serializer_class = VerifyResetCodeSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+
+        if serializer.is_valid():
+            user = serializer.validated_data.get("user")
+            access , refresh = jwt_encode(user)
+            data = {"access":str(access),"refresh":str(refresh)}
+            return Response(data, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class NewPasswordView(GenericAPIView):
+    serializer_class = NewPasswordViewSerializer
+    permission_classes = [IsAuthenticated,ResetPassword]
+
+    @sensitive_post_parameters_m
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'detail': _('New password has been saved.')})
 
 
 class UserLoginAPIView(LoginView):
@@ -138,9 +170,9 @@ class UserLoginAPIView(LoginView):
     
     def get_serializer_class(self):
         if settings.LOGIN_WITH_PHONE_NUMBER:
-            self.serializer_class = UserLoginSerializer
+            return  UserLoginSerializer
         else:
-            self.serializer_class = api_settings.LOGIN_SERIALIZER
+            return api_settings.LOGIN_SERIALIZER
 
 
 
@@ -154,9 +186,9 @@ class CustomizedPasswordResetView(PasswordResetView):
     
     def get_serializer_class(self):
         if settings.LOGIN_WITH_PHONE_NUMBER:
-            self.serializer_class = CustompasswordResetSerializer
+            return CustompasswordResetSerializer
         else:
-            self.serializer_class = api_settings.PASSWORD_RESET_SERIALIZER
+            return api_settings.PASSWORD_RESET_SERIALIZER
 
     def post(self, request, *args, **kwargs):
         # Create a serializer with request.data

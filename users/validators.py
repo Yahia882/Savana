@@ -11,3 +11,10 @@ def validate_email_or_phonenumber(data):
             raise serializers.ValidationError("this is not a valid email")
     
     return data
+
+def validate_phone_number(value):
+    phone_regex = r"^\+?[1-9]\d{1,14}$"
+    if value[0] == "+":
+        if not re.match(phone_regex,value):
+            raise serializers.ValidationError("this is not a valid number")
+    return value

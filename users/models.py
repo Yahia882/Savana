@@ -14,11 +14,75 @@ from twilio.rest import Client
 
 User = get_user_model()
 
+def generate_security_code():
+        """
+        Returns a unique random `security_code` for given `TOKEN_LENGTH` in the settings.
+        Default token length = 6
+        """
+        token_length = getattr(settings, "TOKEN_LENGTH", 6)
+        return get_random_string(token_length, allowed_chars="0123456789")
+
+
+class PassowrdReset(models.Model):
+    user = models.OneToOneField(User, related_name="passwordreset", on_delete=models.CASCADE)
+    code = models.CharField(max_length=120,null=True)
+    sent = models.DateTimeField(null=True)
+    password_expiration = models.DateTimeField(null=True)
+
+    
+
+    def is_security_code_expired(self):
+        expiration_date = self.sent + datetime.timedelta(
+            minutes=settings.TOKEN_EXPIRE_MINUTES
+        )
+        return expiration_date <= timezone.now()
+    
+    def send_passwordreset_code(self):
+        twilio_account_sid = settings.TWILIO_ACCOUNT_SID
+        twilio_auth_token = settings.TWILIO_AUTH_TOKEN
+        twilio_phone_number = settings.TWILIO_PHONE_NUMBER
+
+        self.code = generate_security_code()
+
+
+        if all([twilio_account_sid, twilio_auth_token, twilio_phone_number]):
+            try:
+                twilio_client = Client(twilio_account_sid, twilio_auth_token)
+                twilio_client.messages.create(
+                    body=f"Your password reset code is {self.code}",
+                    to=str(self.user.phone.phone_number),
+                    from_=twilio_phone_number,
+                )
+                self.sent = timezone.now()
+                self.save()
+                return True
+            except TwilioRestException as e:
+                print(e)
+        else:
+            print("Twilio credentials are not set")
+
+    def check_passwordreset_code(self, security_code):
+        if (
+            not self.is_security_code_expired()
+            and security_code == self.code
+        ):
+            self.password_expiration = timezone.now() + datetime.timedelta(minutes=5)
+            self.save()
+            return True
+        else:
+            raise NotAcceptable(
+                _(
+                    "Your security code is wrong or expired."
+                )
+            )
+
+        
+    
 
 class PhoneNumber(models.Model):
     user = models.OneToOneField(User, related_name="phone", on_delete=models.CASCADE)
     phone_number = PhoneNumberField(unique=True)
-    security_code = models.CharField(max_length=120)
+    security_code = models.CharField(max_length=120,null=True)
     is_verified = models.BooleanField(default=False)
     sent = models.DateTimeField(null=True)
 
@@ -31,14 +95,6 @@ class PhoneNumber(models.Model):
     def __str__(self):
         return self.phone_number.as_e164
 
-    def generate_security_code(self):
-        """
-        Returns a unique random `security_code` for given `TOKEN_LENGTH` in the settings.
-        Default token length = 6
-        """
-        token_length = getattr(settings, "TOKEN_LENGTH", 6)
-        return get_random_string(token_length, allowed_chars="0123456789")
-
     def is_security_code_expired(self):
         expiration_date = self.sent + datetime.timedelta(
             minutes=settings.TOKEN_EXPIRE_MINUTES
@@ -46,14 +102,13 @@ class PhoneNumber(models.Model):
         return expiration_date <= timezone.now()
 
     def send_confirmation(self):
-        twilio_account_sid = settings.TWILIO_ACCOUNT_SID
-        twilio_auth_token = settings.TWILIO_AUTH_TOKEN
-        twilio_phone_number = settings.TWILIO_PHONE_NUMBER
+        twilio_account_sid = getattr(settings,"TWILIO_ACCOUNT_SID",None)
+        twilio_auth_token =  getattr(settings,"TWILIO_AUTH_TOKEN",None)
+        twilio_phone_number =  getattr(settings,"TWILIO_PHONE_NUMBER",None)
 
-        self.security_code = self.generate_security_code()
+        self.security_code = generate_security_code()
 
-        # print(
-        #     f'Sending security code {self.security_code} to phone {self.phone_number}')
+
 
         if all([twilio_account_sid, twilio_auth_token, twilio_phone_number]):
             try:
@@ -88,52 +143,12 @@ class PhoneNumber(models.Model):
 
         return self.is_verified
     
-    def send_passwordreset_code(self):
-        twilio_account_sid = settings.TWILIO_ACCOUNT_SID
-        twilio_auth_token = settings.TWILIO_AUTH_TOKEN
-        twilio_phone_number = settings.TWILIO_PHONE_NUMBER
-
-        self.security_code = self.generate_security_code()
-
-        # print(
-        #     f'Sending security code {self.security_code} to phone {self.phone_number}')
-
-        if all([twilio_account_sid, twilio_auth_token, twilio_phone_number]):
-            try:
-                twilio_client = Client(twilio_account_sid, twilio_auth_token)
-                twilio_client.messages.create(
-                    body=f"Your password reset code is {self.security_code}",
-                    to=str(self.phone_number),
-                    from_=twilio_phone_number,
-                )
-                self.sent = timezone.now()
-                self.save()
-                return True
-            except TwilioRestException as e:
-                print(e)
-        else:
-            print("Twilio credentials are not set")
-
-    def check_passwordreset_code(self, security_code):
-        if (
-            not self.is_security_code_expired()
-            and security_code == self.security_code
-        ):
-            pass
-        else:
-            raise NotAcceptable(
-                _(
-                    "Your security code is wrong or expired."
-                )
-            )
-
-        return True
     
 class Profile(models.Model):
     user = models.OneToOneField(User, related_name="profile", on_delete=models.CASCADE)
     avatar = models.ImageField(upload_to="avatar", blank=True)
     bio = models.CharField(max_length=200, blank=True)
-    sent = models.DateTimeField(null=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -145,14 +160,8 @@ class Profile(models.Model):
 
 
 class Address(models.Model):
-    # Address options
-    BILLING = "B"
-    SHIPPING = "S"
-
-    ADDRESS_CHOICES = ((BILLING, _("billing")), (SHIPPING, _("shipping")))
 
     user = models.ForeignKey(User, related_name="addresses", on_delete=models.CASCADE)
-    address_type = models.CharField(max_length=1, choices=ADDRESS_CHOICES)
     default = models.BooleanField(default=False)
     country = CountryField()
     city = models.CharField(max_length=100)

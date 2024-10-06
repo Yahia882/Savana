@@ -12,7 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 import os
-from decouple import config ,Csv
+from decouple import config, Csv
 from datetime import timedelta
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -40,6 +40,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Third party apps
+    "rest_framework_simplejwt",
+    'rest_framework_simplejwt.token_blacklist',
     'rest_framework',
     'rest_framework.authtoken',
     'django.contrib.sites',
@@ -50,7 +53,8 @@ INSTALLED_APPS = [
     'dj_rest_auth.registration',
     "dj_rest_auth",
     'drf_spectacular',
-    "auth",
+    # Local apps
+    "users"
 ]
 SITE_ID = 1
 
@@ -61,6 +65,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    "allauth.account.middleware.AccountMiddleware",
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -147,20 +152,26 @@ REST_AUTH = {
     'USE_JWT': True,
     'JWT_AUTH_COOKIE': "access",
     'JWT_AUTH_REFRESH_COOKIE': "refresh",
-}
+    "OLD_PASSWORD_FIELD_ENABLED": True,
+    'JWT_AUTH_HTTPONLY': False,
 
-# all-auth settings 
-AUTHENTICATION_METHOD = "email"
-ACCOUNT_AUTHENTICATION_METHOD ="email"
+}
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=7),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+}
+# all-auth settings
+ACCOUNT_AUTHENTICATION_METHOD = "email"
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+ACCOUNT_UNIQUE_EMAIL = True
 
 # REST_SETTINGS
 REST_FRAMEWORK = {
     # YOUR SETTINGS
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        
+
         'dj_rest_auth.jwt_auth.JWTCookieAuthentication',
     ),
 }
@@ -174,7 +185,7 @@ SPECTACULAR_SETTINGS = {
 }
 
 # AUTH_SETTINGS
-LOGIN_WITH_PHONE_NUMBER = False
+LOGIN_WITH_PHONE_NUMBER = True
 
 # DJANGO_AUTH_BACKENDS
 AUTHENTICATION_BACKENDS = [
@@ -183,23 +194,19 @@ AUTHENTICATION_BACKENDS = [
 
     # `allauth` specific authentication methods, such as login by email
     'allauth.account.auth_backends.AuthenticationBackend',
-    "auth.backends.phone_backend.PhoneNumberAuthBackend"
+    "users.backends.phone_backend.PhoneNumberAuthBackend"
 ]
 
 CORS_ORIGIN_ALLOW_ALL = True
 
-ACCESS_TOKEN_LIFETIME = timedelta(days=1)
-REFRESH_TOKEN_LIFETIME = timedelta(days=8)
 
-
-#EMAIL_BACKEND = 'djcelery_email.backends.CeleryEmailBackend'
+# EMAIL_BACKEND = 'djcelery_email.backends.CeleryEmailBackend'
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_USE_TLS = True
 EMAIL_PORT = 587
 EMAIL_HOST_USER = config("EMAIL_USER")
 EMAIL_HOST_PASSWORD = config("EMAIL_PASSWORD")
-
 
 
 PHONENUMBER_DEFAULT_REGION = "EG"
@@ -219,3 +226,9 @@ TOKEN_LENGTH = 6
 
 # Token expiry
 TOKEN_EXPIRE_MINUTES = 3
+
+
+# Twilio
+TWILIO_ACCOUNT_SID = config("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = config("TWILIO_AUTH_TOKEN")
+TWILIO_PHONE_NUMBER = config("TWILIO_PHONE_NUMBER")
