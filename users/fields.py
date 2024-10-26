@@ -14,4 +14,6 @@ class phonefield(serializers.CharField):
         
         value = PhoneNumberField()
         return value.to_internal_value(number)
-        
+    
+    def to_representation(self, value):
+        return str(value)

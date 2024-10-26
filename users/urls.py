@@ -1,9 +1,13 @@
+from dj_rest_auth.jwt_auth import get_refresh_view
+from rest_framework_simplejwt.views import TokenVerifyView
 from django.conf import settings
 from django.urls import include, path
-from .views import UserRegisterationAPIView, UserLoginAPIView, SendOrResendSMSAPIView, CustomizedPasswordResetView, VerifyResetCodeView, NewPasswordView,VerifyPhoneNumberAPIView, password_reset_confirm_redirect, email_confirm_redirect
 from dj_rest_auth.views import LogoutView, PasswordResetConfirmView, PasswordChangeView
 from dj_rest_auth.registration.views import VerifyEmailView, ResendEmailVerificationView
 from django.views.generic import TemplateView
+from .views import (UserRegisterationAPIView, UserLoginAPIView, SendOrResendSMSAPIView, CustomizedPasswordResetView,
+                    VerifyResetCodeView, NewPasswordView, VerifyPhoneNumberAPIView, UserAPIView, password_reset_confirm_redirect, email_confirm_redirect)
+
 urlpatterns = [
     path("signup/", UserRegisterationAPIView.as_view(), name="user_register"),
     path("login/", UserLoginAPIView.as_view(), name="user_login"),
@@ -26,14 +30,16 @@ urlpatterns = [
          name='rest_password_reset_confirm'),
     path('password/reset/confirm/phonenumber/', VerifyResetCodeView.as_view(),
          ),
-         path('password/reset/newpassword/', NewPasswordView.as_view(),
+    path('password/reset/newpassword/', NewPasswordView.as_view(),
          name='rest_password_change'),
     path('password/change/', PasswordChangeView.as_view(),
          name='rest_password_change'),
-         path(
+    path(
         'account-email-verification-sent/', TemplateView.as_view(),
         name='account_email_verification_sent',
     ),
+    path("", UserAPIView.as_view(), name="user_detail"),
+    #path("profile/", ProfileAPIView.as_view(), name="profile_detail"),
 ]
 
 if settings.LOGIN_WITH_PHONE_NUMBER:
@@ -44,11 +50,8 @@ if settings.LOGIN_WITH_PHONE_NUMBER:
         ),
     ]
 
-from rest_framework_simplejwt.views import TokenVerifyView
-
-from dj_rest_auth.jwt_auth import get_refresh_view
 
 urlpatterns += [
-        path('token/verify/', TokenVerifyView.as_view(), name='token_verify'),
-        path('token/refresh/', get_refresh_view().as_view(), name='token_refresh'),
-    ]
+    path('token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    path('token/refresh/', get_refresh_view().as_view(), name='token_refresh'),
+]

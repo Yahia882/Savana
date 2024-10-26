@@ -1,30 +1,20 @@
-from dj_rest_auth.views import LogoutView
 from dj_rest_auth.utils import jwt_encode
-from rest_framework import serializers
-from requests.exceptions import HTTPError
-from dj_rest_auth.registration.serializers import SocialLoginSerializer
-from django.http import HttpResponseRedirect,HttpResponse
+from django.http import HttpResponseRedirect
 from django.conf import settings
-from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
-from allauth.socialaccount.providers.oauth2.client import OAuth2Client
-from dj_rest_auth.registration.views import RegisterView, SocialLoginView
-from dj_rest_auth.views import LoginView,sensitive_post_parameters_m
+from dj_rest_auth.views import LoginView,sensitive_post_parameters_m,PasswordResetView
 from django.contrib.auth import get_user_model 
 from django.utils.translation import gettext as _
 from rest_framework import permissions, status
 from dj_rest_auth.app_settings import api_settings
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from dj_rest_auth.views import PasswordResetView
+from rest_framework.permissions import  IsAuthenticated
 from rest_framework.generics import (
     GenericAPIView,
-    RetrieveAPIView,
     RetrieveUpdateAPIView,
 )
 from rest_framework.response import Response
-from rest_framework.viewsets import ReadOnlyModelViewSet
-
-from .models import Address, PhoneNumber, Profile
-from .permissions import IsUserAddressOwner, IsUserProfileOwner,ResetPassword
+from dj_rest_auth.registration.views import RegisterView
+from .models import PhoneNumber
+from .permissions import ResetPassword
 from .serializers import (
     PhoneNumberSerializer,
     UserLoginSerializer,
@@ -32,7 +22,8 @@ from .serializers import (
     VerifyPhoneNumberSerialzier,
     CustompasswordResetSerializer,
     VerifyResetCodeSerializer,
-    NewPasswordViewSerializer
+    NewPasswordViewSerializer,
+    UserSerializer,
 )
 
 
@@ -44,7 +35,6 @@ class UserRegisterationAPIView(RegisterView):
     """
     Register new users using phone number or email and password.
     """
-    
     def get_serializer_class(self):
         if settings.LOGIN_WITH_PHONE_NUMBER:
             return UserRegistrationSerializer
@@ -111,7 +101,7 @@ class SendOrResendSMSAPIView(GenericAPIView):
                 user=user, is_verified=False
             ).first()
 
-            sms_verification.send_confirmation()
+            sms_verification.send_confirmation(confirmation_method = request.data.get("confirmation_method"))
 
             return Response(status=status.HTTP_200_OK)
 
@@ -219,3 +209,36 @@ def password_reset_confirm_redirect(request, uidb64, token):
     return HttpResponseRedirect(
         f"{settings.PASSWORD_RESET_CONFIRM_REDIRECT_BASE_URL}{uidb64}/{token}/"
     )
+
+
+class UserAPIView(RetrieveUpdateAPIView):
+    """
+    Get user details
+    """
+
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get_object(self):
+        return self.request.user
+    
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+        data = serializer.data
+        if serializer.validated_data.get("email"):
+            data.update({"email_detail": _("Verification e-mail sent.")})
+        if serializer.validated_data.get("phone_number"):
+            p=PhoneNumber.objects.get(user = request.user)
+            p.send_confirmation(confirmation_method = request.data.get("confirmation_method"))
+            data.update({"phone_detail": _("Verification SMS sent.")})
+        data.update({"updated_successfully":serializer.validated_data})
+        data["updated_successfully"].pop("email",None)
+        data["updated_successfully"].pop("phone_number",None)
+        return Response(data)
+    
