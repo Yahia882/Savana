@@ -4,7 +4,7 @@ from django.conf import settings
 from dj_rest_auth.views import LoginView,sensitive_post_parameters_m,PasswordResetView
 from django.contrib.auth import get_user_model 
 from django.utils.translation import gettext as _
-from rest_framework import permissions, status
+from rest_framework import permissions, status,mixins
 from dj_rest_auth.app_settings import api_settings
 from rest_framework.permissions import  IsAuthenticated
 from rest_framework.generics import (
@@ -13,8 +13,8 @@ from rest_framework.generics import (
 )
 from rest_framework.response import Response
 from dj_rest_auth.registration.views import RegisterView
-from .models import PhoneNumber
-from .permissions import ResetPassword
+from .models import PhoneNumber,Address
+from .permissions import ResetPassword,IsUserAddressOwner
 from .serializers import (
     PhoneNumberSerializer,
     UserLoginSerializer,
@@ -24,6 +24,8 @@ from .serializers import (
     VerifyResetCodeSerializer,
     NewPasswordViewSerializer,
     UserSerializer,
+    AddressSerializer,
+    VerifyAddressPhoneSerializer
 )
 
 
@@ -242,3 +244,67 @@ class UserAPIView(RetrieveUpdateAPIView):
         data["updated_successfully"].pop("phone_number",None)
         return Response(data)
     
+class AddressMixin(GenericAPIView,mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.CreateModelMixin, mixins.DestroyModelMixin, mixins.UpdateModelMixin):
+    def get(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        if pk is not None:
+            return self.retrieve(request, *args, **kwargs)
+        return self.list(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return self.create(request, *args, **kwargs)
+
+    def put(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
+    def delete(self, request, *args, **kwargs):
+        return self.destroy(request, *args, **kwargs)
+    
+class ManageAddressBook(AddressMixin):
+    permission_classes = [IsUserAddressOwner]
+    serializer_class = AddressSerializer
+
+    def get_queryset(self):
+        return Address.objects.filter(user = self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        phone =serializer.validated_data.get("phone_detail")
+        headers = self.get_success_headers(serializer.data)
+        data = serializer.data
+        if phone:
+            data.update({"phone_detail":phone})
+        return Response(data, status=status.HTTP_201_CREATED, headers=headers)
+    
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        phone =serializer.validated_data.get("phone_detail")
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+        data = serializer.data
+        if phone:
+            data.update({"phone_detail":phone})
+        return Response(data)
+    
+
+class VerifyAddressPhoneNumber(GenericAPIView):
+    """
+    Check if submitted phone number and OTP matches and verify the user.
+    """
+    
+    serializer_class = VerifyAddressPhoneSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+
+        if serializer.is_valid():
+            message = {"detail": _("Phone number successfully verified.")}
+            return Response(message, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

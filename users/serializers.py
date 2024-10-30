@@ -18,7 +18,7 @@ from .exceptions import (
     AccountNotRegisteredException,
     InvalidCredentialsException,
 )
-from .models import Address, PhoneNumber, Profile, PassowrdReset
+from .models import Address, PhoneNumber, Profile, PassowrdReset,AddressPhoneNumber
 from .validators import validate_email_or_phonenumber, validate_phone_number
 import re
 from django.contrib.auth.forms import SetPasswordForm
@@ -234,10 +234,12 @@ class VerifyPhoneNumberSerialzier(serializers.Serializer):
     otp = serializers.CharField(max_length=settings.TOKEN_LENGTH)
 
     def validate_phone_number(self, value):
-        
-        is_verified = User.objects.filter(phone__phone_number=value,phone__is_verified = True)
+
+        is_verified = User.objects.filter(
+            phone__phone_number=value, phone__is_verified=True)
         if is_verified:
-            raise serializers.ValidationError("this phone number is already verified")
+            raise serializers.ValidationError(
+                "this phone number is already verified")
         queryset1 = User.objects.filter(phone__phone_number=value)
         queryset2 = User.objects.filter(phone__temp_phone=value)
         if not queryset1.exists() and not queryset2.exists():
@@ -252,7 +254,7 @@ class VerifyPhoneNumberSerialzier(serializers.Serializer):
         except:
             queryset = PhoneNumber.objects.get(temp_phone=phone_number)
 
-        queryset.check_verification(security_code=otp)  
+        queryset.check_verification(security_code=otp)
 
         return validated_data
 
@@ -293,8 +295,6 @@ class CustompasswordResetSerializer(PasswordResetSerializer):
             else:
                 from django.contrib.auth.tokens import default_token_generator
 
-            
-            
             # Set some values to trigger the send_email method.
             opts = {
                 'use_https': request.is_secure(),
@@ -314,7 +314,8 @@ class CustompasswordResetSerializer(PasswordResetSerializer):
             except:
                 queryset = PassowrdReset.objects.create(user=user)
             self.validated_data["phone"] = phone
-            queryset.send_passwordreset_code(confirmation_method = request.data.get("confirmation_method"))
+            queryset.send_passwordreset_code(
+                confirmation_method=request.data.get("confirmation_method"))
 
 
 class VerifyResetCodeSerializer(serializers.Serializer):
@@ -340,7 +341,27 @@ class VerifyResetCodeSerializer(serializers.Serializer):
         validated_data["user"] = self.user
         return validated_data
 
+class VerifyAddressPhoneSerializer(serializers.Serializer):
+    phone_number = phonefield()
+    otp = serializers.CharField(max_length=settings.TOKEN_LENGTH)
 
+
+    def validate(self, validated_data):
+        phone_number = str(validated_data.get("phone_number"))
+        otp = validated_data.get("otp")
+        request = self.context.get("request")
+        user = request.user
+        q = AddressPhoneNumber.objects.filter(
+            phone_number=phone_number, user=user)
+        if not q.exists():
+            raise serializers.ValidationError("phonenumber does not exist")
+        instance = q.first()
+        if instance.is_verified:
+            raise serializers.ValidationError(
+                "this phone number is already verified")
+        instance.check_verification(security_code=otp)
+        return validated_data
+    
 class NewPasswordViewSerializer(serializers.Serializer):
     new_password1 = serializers.CharField(max_length=128)
     new_password2 = serializers.CharField(max_length=128)
@@ -406,8 +427,8 @@ class UserSerializer(serializers.ModelSerializer):
     bio = serializers.CharField(
         max_length=200, required=False, write_only=True)
     avatar = serializers.ImageField(required=False, write_only=True)
-    phone = PhoneNumberField(read_only = True)
-    phone_number = phonefield(required=False,write_only= True)
+    phone = PhoneNumberField(read_only=True)
+    phone_number = phonefield(required=False, write_only=True)
     username = serializers.CharField(required=False)
     change_email_form = None
 
@@ -428,12 +449,14 @@ class UserSerializer(serializers.ModelSerializer):
     @property
     def email_change_form(self):
         return AddEmailForm
-    
+
     def validate_phone_number(self, phone_number):
         request = self.context.get("request")
-        query =PhoneNumber.objects.filter(phone_number = phone_number , user=request.user )
+        query = PhoneNumber.objects.filter(
+            phone_number=phone_number, user=request.user)
         if query.exists():
-            raise serializers.ValidationError("this phone number is already associated with this account")
+            raise serializers.ValidationError(
+                "this phone number is already associated with this account")
         return phone_number
 
     def validate_username(self, username):
@@ -480,9 +503,70 @@ class UserSerializer(serializers.ModelSerializer):
                 p = PhoneNumber.objects.get(user=request.user)
                 p.temp_phone = phone_number
                 p.save()
-            except: 
+            except:
                 PhoneNumber.objects.create(
                     user=request.user, phone_number=phone_number)
 
         instance.save()
         return instance
+
+
+class AddressSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(read_only = True)
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    phone_number = serializers.CharField(source ="phone_number.phone_number",read_only = True) 
+    phone = phonefield(write_only = True)
+    class Meta:
+        model = Address
+        fields = ("id",
+                  "user",
+                  "country",
+                  "city",
+                  "postal_code",
+                  "street_address",
+                  "apartment_address",
+                  "phone_number",
+                  "phone"
+                  )
+    def create(self, validated_data):
+        user = validated_data.get("user")
+        request = self.context.get("request")
+        phone = validated_data.pop("phone",None)
+        confirmation_method  = request.data.get("confirmation_method")
+        instance = Address(**validated_data)
+        try:
+            addressphone =AddressPhoneNumber.objects.get(user = user,phone_number = phone)
+            instance.phone_number = addressphone
+            if not addressphone.is_verified:
+                addressphone.send_confirmation(confirmation_method=confirmation_method)
+                self.validated_data["phone_detail"] = "Verification SMS sent"
+        except AddressPhoneNumber.DoesNotExist:
+            addressphone =AddressPhoneNumber.objects.create(user = user,phone_number = phone)
+            instance.phone_number = addressphone
+            addressphone.send_confirmation(confirmation_method=confirmation_method)
+            self.validated_data["phone_detail"] = "Verification SMS sent"
+        instance.save()
+        return instance
+    
+    def update(self, instance, validated_data):
+        phone = validated_data.pop("phone",None)
+        instance = super().update(instance, validated_data)
+        request = self.context.get("request")
+        confirmation_method  = request.data.get("confirmation_method")
+        user = request.user
+        if phone:
+            try:
+                addressphone =AddressPhoneNumber.objects.get(user = user,phone_number = phone)
+                instance.phone_number = addressphone
+                if not addressphone.is_verified:
+                    addressphone.send_confirmation(confirmation_method=confirmation_method)
+                    self.validated_data["phone_detail"] = "Verification SMS sent"
+            except AddressPhoneNumber.DoesNotExist:
+                addressphone =AddressPhoneNumber.objects.create(user = user,phone_number = phone)
+                instance.phone_number = addressphone
+                addressphone.send_confirmation(confirmation_method=confirmation_method)
+                self.validated_data["phone_detail"] = "Verification SMS sent"
+        instance.save()
+        return instance
+
+    

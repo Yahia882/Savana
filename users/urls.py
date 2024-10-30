@@ -1,12 +1,12 @@
 from dj_rest_auth.jwt_auth import get_refresh_view
 from rest_framework_simplejwt.views import TokenVerifyView
 from django.conf import settings
-from django.urls import include, path
+from django.urls import  path
 from dj_rest_auth.views import LogoutView, PasswordResetConfirmView, PasswordChangeView
 from dj_rest_auth.registration.views import VerifyEmailView, ResendEmailVerificationView
 from django.views.generic import TemplateView
 from .views import (UserRegisterationAPIView, UserLoginAPIView, SendOrResendSMSAPIView, CustomizedPasswordResetView,
-                    VerifyResetCodeView, NewPasswordView, VerifyPhoneNumberAPIView, UserAPIView, password_reset_confirm_redirect, email_confirm_redirect)
+                    VerifyResetCodeView, NewPasswordView, VerifyPhoneNumberAPIView, UserAPIView,ManageAddressBook,VerifyAddressPhoneNumber, password_reset_confirm_redirect, email_confirm_redirect)
 
 urlpatterns = [
     path("signup/", UserRegisterationAPIView.as_view(), name="user_register"),
@@ -40,6 +40,9 @@ urlpatterns = [
     ),
     path("", UserAPIView.as_view(), name="user_detail"),
     #path("profile/", ProfileAPIView.as_view(), name="profile_detail"),
+    path("address/",ManageAddressBook.as_view()),
+    path("address/<int:pk>",ManageAddressBook.as_view()),
+    path("verify-address-phone/",VerifyAddressPhoneNumber.as_view())
 ]
 
 if settings.LOGIN_WITH_PHONE_NUMBER:

@@ -13,7 +13,6 @@ from twilio.base.exceptions import TwilioRestException
 from twilio.rest import Client
 
 User = get_user_model()
-
 twilio_account_sid = getattr(settings, "TWILIO_ACCOUNT_SID", None)
 twilio_auth_token = getattr(settings, "TWILIO_AUTH_TOKEN", None)
 twilio_phone_number = getattr(settings, "TWILIO_PHONE_NUMBER", None)
@@ -175,6 +174,7 @@ class Profile(models.Model):
 
 
 class AddressPhoneNumber(models.Model):
+    user = models.ForeignKey(User,related_name="addressphonenumber",on_delete=models.CASCADE)
     phone_number = PhoneNumberField()
     security_code = models.CharField(max_length=120, null=True)
     is_verified = models.BooleanField(default=False)
@@ -183,6 +183,8 @@ class AddressPhoneNumber(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        unique_together = [("user", "phone_number")]
     def is_security_code_expired(self):
         expiration_date = self.sent + datetime.timedelta(
             minutes=settings.TOKEN_EXPIRE_MINUTES
@@ -196,13 +198,13 @@ class AddressPhoneNumber(models.Model):
         if all([twilio_account_sid, twilio_auth_token, twilio_phone_number]):
             try:
                 if confirmation_method == "whatsapp":
-                    twilio_client.messages.create(
+                    message =twilio_client.messages.create(
                         from_='whatsapp:+14155238886',
                         content_sid='HX229f5a04fd0510ce1b071852155d3e75',
                         content_variables=f'{{"1": "{self.security_code}"}}',
                         to=f'whatsapp:{str(self.phone_number)}'
                     )
-
+                    print(message)
                 else:
                     twilio_client.messages.create(
                         body=f"Your activation code is {self.security_code}",
@@ -234,7 +236,8 @@ class AddressPhoneNumber(models.Model):
 
         return self.is_verified
 
-
+    def __str__(self):
+        return str(self.phone_number)
 class Address(models.Model):
 
     user = models.ForeignKey(
@@ -246,7 +249,7 @@ class Address(models.Model):
     apartment_address = models.CharField(max_length=100)
     postal_code = models.CharField(max_length=20, blank=True)
     phone_number = models.ForeignKey(
-        AddressPhoneNumber, null=True, on_delete=models.CASCADE)
+        AddressPhoneNumber,  on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
