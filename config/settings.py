@@ -58,7 +58,6 @@ INSTALLED_APPS = [
     'drf_spectacular',
     # Local apps
     "users",
-    "social_auth"
 ]
 SITE_ID = 1
 

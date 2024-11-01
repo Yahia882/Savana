@@ -27,7 +27,11 @@ from .serializers import (
     AddressSerializer,
     VerifyAddressPhoneSerializer
 )
-
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.facebook.views import FacebookOAuth2Adapter
+from allauth.socialaccount.providers.apple.views import AppleOAuth2Adapter
+from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+from dj_rest_auth.registration.views import SocialLoginView
 
 
 User = get_user_model()
@@ -308,3 +312,14 @@ class VerifyAddressPhoneNumber(GenericAPIView):
             return Response(message, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class GoogleLogin(SocialLoginView):
+    adapter_class = GoogleOAuth2Adapter
+    callback_url = "http://localhost:8111/user/login/google"
+    client_class = OAuth2Client
+
+class FacebookLogin(SocialLoginView):
+    adapter_class = FacebookOAuth2Adapter
+    
+class AppleLogin(SocialLoginView):
+    adapter_class = AppleOAuth2Adapter

@@ -6,7 +6,7 @@ from dj_rest_auth.views import LogoutView, PasswordResetConfirmView, PasswordCha
 from dj_rest_auth.registration.views import VerifyEmailView, ResendEmailVerificationView
 from django.views.generic import TemplateView
 from .views import (UserRegisterationAPIView, UserLoginAPIView, SendOrResendSMSAPIView, CustomizedPasswordResetView,
-                    VerifyResetCodeView, NewPasswordView, VerifyPhoneNumberAPIView, UserAPIView,ManageAddressBook,VerifyAddressPhoneNumber, password_reset_confirm_redirect, email_confirm_redirect)
+                    VerifyResetCodeView, NewPasswordView, VerifyPhoneNumberAPIView, UserAPIView,ManageAddressBook,VerifyAddressPhoneNumber,GoogleLogin , FacebookLogin , AppleLogin, password_reset_confirm_redirect, email_confirm_redirect)
 
 urlpatterns = [
     path("signup/", UserRegisterationAPIView.as_view(), name="user_register"),
@@ -42,7 +42,10 @@ urlpatterns = [
     #path("profile/", ProfileAPIView.as_view(), name="profile_detail"),
     path("address/",ManageAddressBook.as_view()),
     path("address/<int:pk>",ManageAddressBook.as_view()),
-    path("verify-address-phone/",VerifyAddressPhoneNumber.as_view())
+    path("verify-address-phone/",VerifyAddressPhoneNumber.as_view()),
+    path("google/login/",GoogleLogin.as_view(),name="google_login"),
+    path("facebook/login/",FacebookLogin.as_view(),name="FB_login"),
+    path("apple/login/",AppleLogin.as_view(),name="Apple_login"),
 ]
 
 if settings.LOGIN_WITH_PHONE_NUMBER:
