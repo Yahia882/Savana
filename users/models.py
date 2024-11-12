@@ -246,7 +246,8 @@ class Address(models.Model):
     country = CountryField()
     city = models.CharField(max_length=100)
     street_address = models.CharField(max_length=100)
-    apartment_address = models.CharField(max_length=100)
+    building_address = models.CharField(max_length=100,default="hqouqeen 1")
+    apartment_address = models.CharField(max_length=100,blank=True)
     postal_code = models.CharField(max_length=20, blank=True)
     phone_number = models.ForeignKey(
         AddressPhoneNumber,  on_delete=models.CASCADE)
