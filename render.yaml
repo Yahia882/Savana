@@ -1,0 +1,21 @@
+databases:
+  - name: savana_s4ik
+    plan: free
+    databaseName: savana
+    user: yahia
+
+services:
+  - type: web
+    plan: free
+    name: savana.com
+    runtime: python
+    buildCommand: "./build.sh"
+    startCommand: "python -m gunicorn savana.com.asgi:application -k uvicorn.workers.UvicornWorker"    envVars:
+      - key: "postgresql://yahia:WhCN7Qeb8sFxIqmJrtSeMj5pueGU39dy@dpg-ct3ig6ij1k6c73e8kaog-a/savana_s4ik"
+        fromDatabase: 
+          name: savana_s4ik
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: WEB_CONCURRENCY
+        value: 4

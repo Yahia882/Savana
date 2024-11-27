@@ -259,3 +259,17 @@ class Address(models.Model):
 
     def __str__(self):
         return self.user.get_full_name()
+
+class Customer(models.Model):
+    user = models.OneToOneField(
+        User, related_name="customer", on_delete=models.CASCADE)
+    customer_id = models.CharField(max_length=100,unique=True)
+
+class PaymentMethod(models.Model):
+    customer = models.ForeignKey(Customer,related_name="paymentmethods",on_delete=models.CASCADE)
+    Payment_method_id = models.CharField(max_length=100,unique=True)
+    default = models.BooleanField(default=False)
+    card_brand = models.CharField(max_length=100)
+    last4 = models.IntegerField()
+    exp_month = models.IntegerField()
+    exp_year = models.IntegerField()

@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
-
+import dj_database_url
 from pathlib import Path
 import os
 from decouple import config, Csv
@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     # Third party apps
+    'corsheaders',
     'django.contrib.sites',
     'rest_framework',
     'rest_framework.authtoken',
@@ -58,11 +59,14 @@ INSTALLED_APPS = [
     'drf_spectacular',
     # Local apps
     "users",
+    "sellers"
 ]
 SITE_ID = 1
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -106,6 +110,11 @@ DATABASES = {
         "HOST": config("DB_HOSTNAME"),
         "PORT": config("DB_PORT", cast=int),
     }
+    # 'default': dj_database_url.config(
+    #     # Replace this value with your local database's connection string.
+    #     default=config("db_internal_url"),
+    #     conn_max_age=600
+    # )
 }
 
 
@@ -144,6 +153,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -267,3 +277,6 @@ SOCIALACCOUNT_PROVIDERS = {
         'GRAPH_API_URL': 'https://graph.facebook.com/v13.0',
     }
 }
+
+# stripe
+test_secret_key = config("stripe_test_key")
