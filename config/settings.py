@@ -102,19 +102,19 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": config("DB_NAME"),
-        "USER": config("DB_USERNAME"),
-        "PASSWORD": config("DB_PASSWORD"),
-        "HOST": config("DB_HOSTNAME"),
-        "PORT": config("DB_PORT", cast=int),
-    }
-    # 'default': dj_database_url.config(
-    #     # Replace this value with your local database's connection string.
-    #     default=config("db_internal_url"),
-    #     conn_max_age=600
-    # )
+    # "default": {
+    #     "ENGINE": "django.db.backends.postgresql",
+    #     "NAME": config("DB_NAME"),
+    #     "USER": config("DB_USERNAME"),
+    #     "PASSWORD": config("DB_PASSWORD"),
+    #     "HOST": config("DB_HOSTNAME"),
+    #     "PORT": config("DB_PORT", cast=int),
+    # }
+    'default': dj_database_url.config(
+        # Replace this value with your local database's connection string.
+        default=config("DATABASE_URL"),
+        conn_max_age=600
+    )
 }
 
 
