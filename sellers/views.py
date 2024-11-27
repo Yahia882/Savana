@@ -7,7 +7,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from decouple import config
 from django.conf import settings
 # Create your views here.
-stripe.api_key = settings.test_secret_key
+stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
 
 # acc = stripe.Account.create(
 #     email = "yahia.abdo2002@gmail.com",

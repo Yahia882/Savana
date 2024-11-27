@@ -279,4 +279,4 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 
 # stripe
-test_secret_key = config("stripe_test_key")
+STRIPE_TEST_SECRET_KEY = config("STRIPE_TEST_SECRET_KEY")
