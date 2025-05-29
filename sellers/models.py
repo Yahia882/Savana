@@ -13,11 +13,11 @@ class Seller(models.Model):
     seller_id = models.CharField(max_length=100,unique=True)
     location = CountryField()
     status = models.JSONField(default=default_status)
-    stripe_verifeid = models.BooleanField(default=False)
-    app_verifeid = models.BooleanField(default=False)
-    pm_sub = models.OneToOneField(PaymentMethod,on_delete=models.CASCADE)
-
+    PG_verified = models.BooleanField(default=False)
+    app_verified = models.BooleanField(default=False)
+    pm_sub = models.OneToOneField(PaymentMethod,on_delete=models.CASCADE,null=True)
     
+
     
 class Store(models.Model):
     seller = models.OneToOneField(Seller,related_name="store",on_delete=models.CASCADE)

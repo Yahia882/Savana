@@ -133,3 +133,6 @@ dmypy.json
 media/
 mediafiles/
 staticfiles/
+
+notes.md
+futurefeature.md

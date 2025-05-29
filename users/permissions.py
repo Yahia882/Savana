@@ -24,6 +24,7 @@ class IsUserAddressOwner(BasePermission):
     def has_object_permission(self, request, view, obj):
         return obj.user == request.user or request.user.is_staff
 
+# better way is to give the user a token specified for resetpassowrd view after he enter the OTP right, and the token expires fast . 
 class ResetPassword(BasePermission):
     def has_permission(self, request, view):
         try:
