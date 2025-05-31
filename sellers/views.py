@@ -17,7 +17,6 @@ from .models import Seller
 from users.models import Customer, PaymentMethod
 from .serializers import LocationSerializer
 from dj_rest_auth.app_settings import api_settings as rest_auth_api_settings
-from django.utils import timezone
 from rest_framework import status
 from .serializers import CustomizedJWTSerializer
 from .permissions import HasEmail, IsSeller
@@ -107,6 +106,11 @@ class sellerPaymentMethod (APIView):
                 email=user.email,
             )
             customer_id = customer["id"]
+            # refactor the code later for example make sure the database accessing is optimal and performe well
+            Customer.objects.create(
+                user=user,
+                customer_id=customer_id,
+            )
         customer_session = stripe.CustomerSession.create(
             customer=customer_id,
             components={
@@ -271,7 +275,7 @@ class location(GenericAPIView):
         return Response({"platform": "country not supported yet"})
 
 
-@csrf_exempt
+@csrf_exempt        # implement the logic after returning the response through using Celery or any other task queue
 def my_webhook_view(request):
     payload = request.body
     sig_header = request.META['HTTP_STRIPE_SIGNATURE']
@@ -300,18 +304,16 @@ def my_webhook_view(request):
             acc.stripe_verified = True
             acc.status["onboard"] = True
             print('stripe_verified is true')
-            return HttpResponse(status=200)
         elif account["details_submitted"] == True and account["future_requirements"]["past_due"] == []:
             acc = Seller.objects.filter(seller_id=account["id"])
             acc.status["onboard"] = True
             print('onboard is true')
-            return HttpResponse(status=200)
+
         elif account["details_submitted"] == False or account["future_requirements"]["past_due"] is not None:
             acc = Seller.objects.filter(seller_id=account["id"])
             acc.status["onboard"] = False
             acc.stripe_verified = False
             print('onboard is false')
-            return HttpResponse(status=200)
 
     elif event.type == 'setup_intent.succeeded':
         setup_intent = event.data.object
@@ -335,7 +337,6 @@ def my_webhook_view(request):
         acc.pm_sub = pm
         acc.status["store_pm"] = True
         acc.save()
-        return HttpResponse(status=200)
 
     elif event.type == 'payment_method.attached':
         payment_method = event.data.object  # contains a stripe.PaymentMethod
