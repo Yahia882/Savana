@@ -10,5 +10,5 @@ urlpatterns = [
     path("notification_banner/",views.test_notification_banner.as_view()),
     path("location/",views.location.as_view()),
     path("signup/",views.signup.as_view()),
-    path("webhook/",views.my_webhook_view.as_view()),
+    path("webhook/",views.my_webhook_view),
 ]
