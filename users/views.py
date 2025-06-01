@@ -33,10 +33,10 @@ from allauth.socialaccount.providers.apple.views import AppleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import SocialLoginView
 from django.views.decorators.csrf import csrf_exempt
-
+from django.utils.decorators import method_decorator
 User = get_user_model()
 
-@csrf_exempt  
+@method_decorator(csrf_exempt, name='dispatch')
 class UserRegisterationAPIView(RegisterView):
     """
     Register new users using phone number or email and password.
@@ -158,7 +158,7 @@ class NewPasswordView(GenericAPIView):
         serializer.save()
         return Response({'detail': _('New password has been saved.')})
 
-@csrf_exempt  
+@method_decorator(csrf_exempt, name='dispatch')
 class UserLoginAPIView(LoginView):
     """
     Authenticate existing users using phone number or email and password.
@@ -216,7 +216,7 @@ def password_reset_confirm_redirect(request, uidb64, token):
         f"{settings.PASSWORD_RESET_CONFIRM_REDIRECT_BASE_URL}{uidb64}/{token}/"
     )
 
-@csrf_exempt  
+@method_decorator(csrf_exempt, name='dispatch')
 class UserAPIView(RetrieveUpdateAPIView):
     """
     Get user details

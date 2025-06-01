@@ -13,6 +13,7 @@ from .jwt_auth import SellerJWTCookieAuthentication
 import json
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from .models import Seller
 from users.models import Customer, PaymentMethod
 from .serializers import LocationSerializer
@@ -38,7 +39,7 @@ stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
 #   },
 # )
 
-@csrf_exempt  
+@method_decorator(csrf_exempt, name='dispatch')
 class onboarding(APIView):
     authentication_classes = [SellerJWTCookieAuthentication]
     permission_classes = [permissions.IsAuthenticated, HasEmail]
@@ -89,7 +90,7 @@ class onboarding(APIView):
             'client_secret': account_session.client_secret,
         })
 
-@csrf_exempt  
+@method_decorator(csrf_exempt, name='dispatch')
 class sellerPaymentMethod (APIView):
     authentication_classes = [SellerJWTCookieAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsSeller, HasEmail]
@@ -209,7 +210,7 @@ class test_notification_banner(APIView):
 # you can add two way authentication to the view through authenticate the user in this view (do not send token) after the user
 # authenticates successfully, send OTP to the user's email or phone number, then create other view to enter the OTP and verify it
 # if the OTP is correct, create the token and send it to the user
-@csrf_exempt  
+@method_decorator(csrf_exempt, name='dispatch')
 class signup(LoginView):
     permission_classes = [permissions.IsAuthenticated, HasEmail]
     serializer_class = None
