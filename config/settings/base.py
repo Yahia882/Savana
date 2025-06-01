@@ -283,4 +283,10 @@ STRIPE_TEST_SECRET_KEY = config("STRIPE_TEST_SECRET_KEY")
 
 JWT_TOKEN_CLAIMS_SERIALIZER = "sellers.tokens.CustomizedTokenObtainPairSerializer"
 
-CSRF_TRUSTED_ORIGINS = ['*']
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000',  # Default Django dev server
+    'http://127.0.0.1:8000',
+    'http://localhost:3000',  # Example for a frontend dev server
+    'http://127.0.0.1:3000',
+    # Add any other development origins you need
+]
