@@ -121,7 +121,7 @@ class sellerPaymentMethod (APIView):
                     "features": {
                         "payment_method_redisplay": "enabled",
                         "payment_method_save": "enabled",
-                        "payment_method_save_usage": "off_session ",
+                        "payment_method_save_usage": "off_session",
                         "payment_method_remove": "enabled",
                     },
                 },
@@ -301,7 +301,7 @@ def my_webhook_view(request):
     if event.type == 'account.updated':
         account = event.data.object
         # Occurs whenever an account status or property has changed
-        print('account property changed!')
+        print('account property changed {}'.format(event.type))
         if account["charges_enabled"] == True and account["payouts_enabled"] == True:
             acc = Seller.objects.get(seller_id=account["id"])
             acc.stripe_verified = True
