@@ -306,16 +306,19 @@ def my_webhook_view(request):
             acc = Seller.objects.get(seller_id=account["id"])
             acc.stripe_verified = True
             acc.status["onboard"] = True
+            acc.save()
             print('stripe_verified is true')
         elif account["details_submitted"] == True and account["future_requirements"]["past_due"] == []:
-            acc = Seller.objects.filter(seller_id=account["id"])
+            acc = Seller.objects.get(seller_id=account["id"])
             acc.status["onboard"] = True
+            acc.save()
             print('onboard is true')
 
         elif account["details_submitted"] == False or account["future_requirements"]["past_due"] is not None:
-            acc = Seller.objects.filter(seller_id=account["id"])
+            acc = Seller.objects.get(seller_id=account["id"])
             acc.status["onboard"] = False
             acc.stripe_verified = False
+            acc.save()
             print('onboard is false')
 
     elif event.type == 'setup_intent.succeeded':
@@ -336,7 +339,7 @@ def my_webhook_view(request):
             exp_year=pm_obj["card"]["exp_year"],
             customer=customer_instance
         )
-        acc = Seller.objects.filter(user=user)
+        acc = Seller.objects.get(user=user)
         acc.pm_sub = pm
         acc.status["store_pm"] = True
         acc.save()
