@@ -46,7 +46,6 @@ class onboarding(APIView):
 
     def post(self, request):
         user = request.user
-        print(settings.STRIPE_WEBHOOK_SECRET_KEY)
         try:
             seller = user.seller
             seller_id = seller.seller_id
@@ -285,6 +284,7 @@ def my_webhook_view(request):
     event = None
 
     try:
+        print(settings.STRIPE_WEBHOOK_SECRET_KEY)
         event = stripe.Webhook.construct_event(
             payload, sig_header, settings.STRIPE_WEBHOOK_SECRET_KEY
         )
