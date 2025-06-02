@@ -46,6 +46,7 @@ class onboarding(APIView):
 
     def post(self, request):
         user = request.user
+        print(settings.STRIPE_WEBHOOK_SECRET_KEY)
         try:
             seller = user.seller
             seller_id = seller.seller_id
