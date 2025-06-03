@@ -284,7 +284,8 @@ def my_webhook_view(request):
     event = None
 
     try:
-        print(payload)
+        print("sign_header",sig_header)
+        print("payload",payload)
         event = stripe.Webhook.construct_event(
             payload, sig_header, settings.STRIPE_WEBHOOK_SECRET_KEY
         )
