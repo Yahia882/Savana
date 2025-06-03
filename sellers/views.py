@@ -278,16 +278,14 @@ class location(GenericAPIView):
 
 
 @csrf_exempt        # implement the logic after returning the response through using Celery or any other task queue
-def my_webhook_view(request):
+def connected_acc_webhook_view(request):
     payload = request.body
     sig_header = request.META['HTTP_STRIPE_SIGNATURE']
     event = None
 
     try:
-        print("sign_header",sig_header)
-        print("payload",payload)
         event = stripe.Webhook.construct_event(
-            payload, sig_header, settings.STRIPE_WEBHOOK_SECRET_KEY
+            payload, sig_header, settings.STRIPE_WEBHOOK_CONNECTED_SECRET_KEY
         )
     except ValueError as e:
         # Invalid payload
@@ -323,6 +321,59 @@ def my_webhook_view(request):
             print('onboard is false')
 
     elif event.type == 'setup_intent.succeeded':
+        setup_intent = event.data.object
+        customer_id = setup_intent["customer"]
+        customer_instance = Customer.objects.get(customer_id=customer_id)
+        user = customer_instance.user
+        pm_id = setup_intent["payment_method"]
+        pm_obj = stripe.Customer.retrieve_payment_method(
+            customer_id,
+            pm_id,
+        )
+        pm = PaymentMethod.objects.create(
+            payment_method_id=pm_obj["id"],
+            card_brand=pm_obj["card"]["brand"],
+            last4=pm_obj["card"]["last4"],
+            exp_month=pm_obj["card"]["exp_month"],
+            exp_year=pm_obj["card"]["exp_year"],
+            customer=customer_instance
+        )
+        acc = Seller.objects.get(user=user)
+        acc.pm_sub = pm
+        acc.status["store_pm"] = True
+        acc.save()
+
+    elif event.type == 'payment_method.attached':
+        payment_method = event.data.object  # contains a stripe.PaymentMethod
+        print('PaymentMethod was attached to a Customer!')
+    # ... handle other event types
+    else:
+        print('Unhandled event type {}'.format(event.type))
+
+    return HttpResponse(status=200)
+
+
+@csrf_exempt        # implement the logic after returning the response through using Celery or any other task queue
+def account_webhook_view(request):
+    payload = request.body
+    sig_header = request.META['HTTP_STRIPE_SIGNATURE']
+    event = None
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, settings.STRIPE_WEBHOOK_PLATFORM_SECRET_KEY
+        )
+    except ValueError as e:
+        # Invalid payload
+        print('Error parsing payload: {}'.format(str(e)))
+        return HttpResponse(status=400)
+    except stripe.error.SignatureVerificationError as e:
+        # Invalid signature
+        print('Error verifying webhook signature: {}'.format(str(e)))
+        return HttpResponse(status=400)
+
+    # Handle the event
+    if event.type == 'setup_intent.succeeded':
         setup_intent = event.data.object
         customer_id = setup_intent["customer"]
         customer_instance = Customer.objects.get(customer_id=customer_id)
