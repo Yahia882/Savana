@@ -282,6 +282,8 @@ SOCIALACCOUNT_PROVIDERS = {
 STRIPE_TEST_SECRET_KEY = config("STRIPE_TEST_SECRET_KEY")
 STRIPE_WEBHOOK_CONNECTED_SECRET_KEY = config("STRIPE_WEBHOOK_CONNECTED_SECRET_KEY")
 STRIPE_WEBHOOK_PLATFORM_SECRET_KEY = config("STRIPE_WEBHOOK_PLATFORM_SECRET_KEY")
+
+# why did i do that for, is it for overrriding making jwt token for the user in general in order to always add the role claim to the token ?
 JWT_TOKEN_CLAIMS_SERIALIZER = "sellers.tokens.CustomizedTokenObtainPairSerializer"
 
 CSRF_TRUSTED_ORIGINS = [

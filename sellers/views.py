@@ -4,6 +4,7 @@ from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny
 import stripe
 from rest_framework import permissions
+from rest_framework.generics import CreateAPIView
 from django.core.exceptions import ObjectDoesNotExist
 from decouple import config
 from django.conf import settings
@@ -19,25 +20,12 @@ from users.models import Customer, PaymentMethod
 from .serializers import LocationSerializer
 from dj_rest_auth.app_settings import api_settings as rest_auth_api_settings
 from rest_framework import status
-from .serializers import CustomizedJWTSerializer
+from .serializers import CustomizedJWTSerializer ,StoreInfoSerializer
 from .permissions import HasEmail, IsSeller
 # Create your views here.
 stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
 
-# acc = stripe.Account.create(
-#     email = "yahia.abdo2002@gmail.com",
-#     controller={
-#     "stripe_dashboard": {
-#       "type": "express",
-#     },
-#     "fees": {
-#       "payer": "application"
-#     },
-#     "losses": {
-#       "payments": "application"
-#     },
-#   },
-# )
+
 
 @method_decorator(csrf_exempt, name='dispatch')
 class onboarding(APIView):
@@ -134,6 +122,21 @@ class sellerPaymentMethod (APIView):
             'customer_session_client_secret': customer_session.client_secret, 'intent_client_secret': intent.client_secret
         })
 
+class StoreInfo(CreateAPIView):
+    authentication_classes = [SellerJWTCookieAuthentication]
+    permission_classes = [permissions.IsAuthenticated, HasEmail]
+    serializer_class = StoreInfoSerializer
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    def perform_create(self, serializer):
+        seller = self.request.user.seller
+        serializer.save(seller=seller)
+        account = stripe.Account.retrieve(seller.seller_id)
+        seller.location = account["country"]
+        seller.save()
 
 class test_Onboarding(APIView):
     permission_classes = [AllowAny]
@@ -384,7 +387,7 @@ def account_webhook_view(request):
             pm_id,
         )
         pm = PaymentMethod.objects.create(
-            payment_method_id=pm_obj["id"],
+            Payment_method_id=pm_obj["id"],
             card_brand=pm_obj["card"]["brand"],
             last4=pm_obj["card"]["last4"],
             exp_month=pm_obj["card"]["exp_month"],
