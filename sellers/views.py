@@ -3,8 +3,8 @@ from rest_framework.views import APIView
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny
 import stripe
-from rest_framework import permissions
-from rest_framework.generics import CreateAPIView
+from rest_framework import permissions, mixins
+from rest_framework.generics import CreateAPIView , UpdateAPIView
 from django.core.exceptions import ObjectDoesNotExist
 from decouple import config
 from django.conf import settings
@@ -15,7 +15,7 @@ import json
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from .models import Seller
+from .models import Seller, Store
 from users.models import Customer, PaymentMethod
 from .serializers import LocationSerializer
 from dj_rest_auth.app_settings import api_settings as rest_auth_api_settings
@@ -122,10 +122,16 @@ class sellerPaymentMethod (APIView):
             'customer_session_client_secret': customer_session.client_secret, 'intent_client_secret': intent.client_secret
         })
 # maybe add update also (put request)
-class StoreInfo(CreateAPIView):
+class StoreInfo(mixins.UpdateModelMixin,
+                    GenericAPIView,mixins.CreateModelMixin):
     authentication_classes = [SellerJWTCookieAuthentication]
     permission_classes = [permissions.IsAuthenticated, HasEmail]
     serializer_class = StoreInfoSerializer
+    
+    def get_object(self):
+        instance = Store.objects.get(seller=self.request.user.seller)
+        return instance
+    
     def create(self, request, *args, **kwargs):
         if not request.user.seller.status["store_pm"]:
             return Response({"error": "finish setting your payment method first"}, status=status.HTTP_400_BAD_REQUEST)
@@ -135,10 +141,17 @@ class StoreInfo(CreateAPIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     def perform_create(self, serializer):
         seller = self.request.user.seller
-        serializer.save(seller=seller)
+        serializer.save()
         account = stripe.Account.retrieve(seller.seller_id)
         seller.location = account["country"]
         seller.save()
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        return Response(serializer.data)
 
 class test_Onboarding(APIView):
     permission_classes = [AllowAny]
