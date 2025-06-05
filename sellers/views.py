@@ -22,6 +22,7 @@ from dj_rest_auth.app_settings import api_settings as rest_auth_api_settings
 from rest_framework import status
 from .serializers import CustomizedJWTSerializer ,StoreInfoSerializer
 from .permissions import HasEmail, IsSeller
+from .generics import UpdateCreateAPIView
 # Create your views here.
 stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
 
@@ -122,8 +123,7 @@ class sellerPaymentMethod (APIView):
             'customer_session_client_secret': customer_session.client_secret, 'intent_client_secret': intent.client_secret
         })
 # maybe add update also (put request)
-class StoreInfo(mixins.UpdateModelMixin,
-                    GenericAPIView,mixins.CreateModelMixin):
+class StoreInfo(UpdateCreateAPIView):
     authentication_classes = [SellerJWTCookieAuthentication]
     permission_classes = [permissions.IsAuthenticated, HasEmail]
     serializer_class = StoreInfoSerializer
