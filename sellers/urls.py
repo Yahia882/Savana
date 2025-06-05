@@ -10,6 +10,7 @@ urlpatterns = [
     path("notification_banner/",views.test_notification_banner.as_view()),
     path("location/",views.location.as_view()),
     path("signup/",views.signup.as_view()),
+    path("store_info/",views.StoreInfo.as_view()),
     path("connected_acc_webhook/",views.connected_acc_webhook_view),
     path("platform_acc_webhook/",views.account_webhook_view),
 ]
