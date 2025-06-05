@@ -283,7 +283,7 @@ class location(GenericAPIView):
 @csrf_exempt        # implement the logic after returning the response through using Celery or any other task queue
 def connected_acc_webhook_view(request):
     payload = request.body
-    sig_header = request.META['HTTP_STRIPE_SIGNATURE']
+    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
     event = None
 
     try:
@@ -359,7 +359,7 @@ def connected_acc_webhook_view(request):
 @csrf_exempt        # implement the logic after returning the response through using Celery or any other task queue
 def account_webhook_view(request):
     payload = request.body
-    sig_header = request.META['HTTP_STRIPE_SIGNATURE']
+    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
     event = None
 
     try:
