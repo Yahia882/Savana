@@ -121,12 +121,14 @@ class sellerPaymentMethod (APIView):
         return Response({
             'customer_session_client_secret': customer_session.client_secret, 'intent_client_secret': intent.client_secret
         })
-
+# maybe add update also (put request)
 class StoreInfo(CreateAPIView):
     authentication_classes = [SellerJWTCookieAuthentication]
     permission_classes = [permissions.IsAuthenticated, HasEmail]
     serializer_class = StoreInfoSerializer
     def create(self, request, *args, **kwargs):
+        if not request.user.seller.status["store_pm"]:
+            return Response({"error": "finish setting your payment method first"}, status=status.HTTP_400_BAD_REQUEST)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)

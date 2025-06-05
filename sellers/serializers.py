@@ -39,9 +39,12 @@ class LocationSerializer(serializers.Serializer):
         self.context["allowed"] = self.allowed
         return value
     
-class StoreInfoSerializer(serializers.Serializer):
+class StoreInfoSerializer(serializers.ModelSerializer):
     store_name = serializers.CharField(max_length=100)
-
+    seller = serializers.CharField(source = "seller.id",read_only= True)
+    class Meta:
+        model = Store
+        fields = ["seller",'store_name']
     def validate_store_name(self, value):
         if Store.objects.filter(name=value).exists():
             raise serializers.ValidationError("A store with this name already exists.")
