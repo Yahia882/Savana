@@ -144,14 +144,8 @@ class StoreInfo(UpdateCreateAPIView):
         serializer.save()
         account = stripe.Account.retrieve(seller.seller_id)
         seller.location = account["country"]
+        seller.status["store_info"] = True
         seller.save()
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-
-        return Response(serializer.data)
 
 class test_Onboarding(APIView):
     permission_classes = [AllowAny]
@@ -321,7 +315,7 @@ def connected_acc_webhook_view(request):
         print('account property changed {}'.format(event.type))
         if account["charges_enabled"] == True and account["payouts_enabled"] == True:
             acc = Seller.objects.get(seller_id=account["id"])
-            acc.stripe_verified = True
+            acc.PG_verified = True
             acc.status["onboard"] = True
             acc.save()
             print('stripe_verified is true')
@@ -334,37 +328,10 @@ def connected_acc_webhook_view(request):
         elif account["details_submitted"] == False or account["future_requirements"]["past_due"] is not None:
             acc = Seller.objects.get(seller_id=account["id"])
             acc.status["onboard"] = False
-            acc.stripe_verified = False
+            acc.PG_verified = False
             acc.save()
             print('onboard is false')
 
-    elif event.type == 'setup_intent.succeeded':
-        setup_intent = event.data.object
-        customer_id = setup_intent["customer"]
-        customer_instance = Customer.objects.get(customer_id=customer_id)
-        user = customer_instance.user
-        pm_id = setup_intent["payment_method"]
-        pm_obj = stripe.Customer.retrieve_payment_method(
-            customer_id,
-            pm_id,
-        )
-        pm = PaymentMethod.objects.create(
-            payment_method_id=pm_obj["id"],
-            card_brand=pm_obj["card"]["brand"],
-            last4=pm_obj["card"]["last4"],
-            exp_month=pm_obj["card"]["exp_month"],
-            exp_year=pm_obj["card"]["exp_year"],
-            customer=customer_instance
-        )
-        acc = Seller.objects.get(user=user)
-        acc.pm_sub = pm
-        acc.status["store_pm"] = True
-        acc.save()
-
-    elif event.type == 'payment_method.attached':
-        payment_method = event.data.object  # contains a stripe.PaymentMethod
-        print('PaymentMethod was attached to a Customer!')
-    # ... handle other event types
     else:
         print('Unhandled event type {}'.format(event.type))
 
@@ -422,3 +389,9 @@ def account_webhook_view(request):
         print('Unhandled event type {}'.format(event.type))
 
     return HttpResponse(status=200)
+
+class VerifySeller(APIView):
+    
+    def get_queryset(self):
+        pass
+    

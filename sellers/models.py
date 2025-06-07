@@ -17,6 +17,10 @@ class Seller(models.Model):
     app_verified = models.BooleanField(default=False)
     pm_sub = models.OneToOneField(PaymentMethod,on_delete=models.CASCADE,null=True)
     
+    class Meta:
+        permissions = [
+            ("can_verify_seller", "Can verify seller"),
+        ]
 
     
 class Store(models.Model):
