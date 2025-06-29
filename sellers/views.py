@@ -423,7 +423,7 @@ def account_webhook_view(request):
 
     return HttpResponse(status=200)
 
-
+@method_decorator(csrf_exempt, name='dispatch')
 class VerifySeller(ListRetrieveUpdate):
     serializer_class = VerifySellerSerializer
     permission_classes = [CanVerify,]

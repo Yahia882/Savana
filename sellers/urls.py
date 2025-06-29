@@ -13,4 +13,5 @@ urlpatterns = [
     path("store_info/",views.StoreInfo.as_view()),
     path("connected_acc_webhook/",views.connected_acc_webhook_view),
     path("platform_acc_webhook/",views.account_webhook_view),
+    path("verify_seller/",views.VerifySeller.as_view()),
 ]
