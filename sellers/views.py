@@ -1,10 +1,9 @@
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.generics import GenericAPIView
+from rest_framework.generics import GenericAPIView, get_object_or_404
 from rest_framework.permissions import AllowAny
 import stripe
-from rest_framework import permissions, mixins
-from rest_framework.generics import CreateAPIView , UpdateAPIView
+from rest_framework import permissions
 from django.core.exceptions import ObjectDoesNotExist
 from decouple import config
 from django.conf import settings
@@ -20,12 +19,11 @@ from users.models import Customer, PaymentMethod
 from .serializers import LocationSerializer
 from dj_rest_auth.app_settings import api_settings as rest_auth_api_settings
 from rest_framework import status
-from .serializers import CustomizedJWTSerializer ,StoreInfoSerializer
-from .permissions import HasEmail, IsSeller
-from .generics import UpdateCreateAPIView
+from .serializers import CustomizedJWTSerializer, StoreInfoSerializer, VerifySellerSerializer, GetSellerSerializer
+from .permissions import HasEmail, IsSeller, CanVerify
+from .generics import UpdateCreateAPIView, ListRetrieveUpdate
 # Create your views here.
 stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
-
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -79,15 +77,46 @@ class onboarding(APIView):
             'client_secret': account_session.client_secret,
         })
 
+# clean the redundant code later
 @method_decorator(csrf_exempt, name='dispatch')
 class sellerPaymentMethod (APIView):
     authentication_classes = [SellerJWTCookieAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsSeller, HasEmail]
+    def put(self, request):
+        user = request.user
+        if not user.seller.status["onboard"]:
+            return Response({"error": "finish onboarding first"}, status=status.HTTP_400_BAD_REQUEST)
+        if not user.seller.PG_verified:
+            return Response({"error": "you cannot update payment method because you are not verified yet"}, status=status.HTTP_400_BAD_REQUEST)
 
+        customer_id = user.customer.customer_id
+        customer_session = stripe.CustomerSession.create(
+            customer=customer_id,
+            components={
+                "payment_element": {
+                    "enabled": True,
+                    "features": {
+                        "payment_method_redisplay": "enabled",
+                        "payment_method_save": "enabled",
+                        "payment_method_save_usage": "off_session",
+                        "payment_method_remove": "enabled",
+                    },
+                },
+            },
+        )
+        intent = stripe.SetupIntent.create(
+            customer=customer_id,
+        )
+
+        return Response({
+            'customer_session_client_secret': customer_session.client_secret, 'intent_client_secret': intent.client_secret
+        })
     def post(self, request):
         user = request.user
         if not user.seller.status["onboard"]:
             return Response({"error": "finish onboarding first"}, status=status.HTTP_400_BAD_REQUEST)
+        if user.seller.status["store_pm"]:
+            return Response({"error": "payment method already been set"}, status=status.HTTP_400_BAD_REQUEST)
         try:
             customer = user.customer
             customer_id = customer.customer_id
@@ -123,15 +152,17 @@ class sellerPaymentMethod (APIView):
             'customer_session_client_secret': customer_session.client_secret, 'intent_client_secret': intent.client_secret
         })
 # maybe add update also (put request)
+
+
 class StoreInfo(UpdateCreateAPIView):
     authentication_classes = [SellerJWTCookieAuthentication]
     permission_classes = [permissions.IsAuthenticated, HasEmail]
     serializer_class = StoreInfoSerializer
-    
+
     def get_object(self):
         instance = Store.objects.get(seller=self.request.user.seller)
         return instance
-    
+
     def create(self, request, *args, **kwargs):
         if not request.user.seller.status["store_pm"]:
             return Response({"error": "finish setting your payment method first"}, status=status.HTTP_400_BAD_REQUEST)
@@ -139,6 +170,7 @@ class StoreInfo(UpdateCreateAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
     def perform_create(self, serializer):
         seller = self.request.user.seller
         serializer.save()
@@ -371,6 +403,7 @@ def account_webhook_view(request):
         pm = PaymentMethod.objects.create(
             Payment_method_id=pm_obj["id"],
             card_brand=pm_obj["card"]["brand"],
+            funding=pm_obj["card"]["funding"],
             last4=pm_obj["card"]["last4"],
             exp_month=pm_obj["card"]["exp_month"],
             exp_year=pm_obj["card"]["exp_year"],
@@ -390,8 +423,22 @@ def account_webhook_view(request):
 
     return HttpResponse(status=200)
 
-class VerifySeller(APIView):
-    
+
+class VerifySeller(ListRetrieveUpdate):
+    serializer_class = VerifySellerSerializer
+    permission_classes = [CanVerify,]
+
+    def get_serializer_class(self):
+        if self.request.method == "GET" and self.kwargs.get('pk'):
+            return GetSellerSerializer
+        else:
+            return VerifySellerSerializer
     def get_queryset(self):
-        pass
-    
+        queryset = Seller.objects.filter(
+            PG_verified=True,
+            app_verified=False,
+            status__store_info=True
+        )
+        return queryset
+
+

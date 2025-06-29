@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from django_countries.serializer_fields import CountryField
-from .models import Store
-serializers.ModelSerializer
+from .models import Store , Seller
+from users.models import PaymentMethod
+from django_countries.serializers import CountryFieldMixin
 from dj_rest_auth.app_settings import api_settings
 class CustomizedJWTSerializer(serializers.Serializer):
     """
@@ -54,5 +55,28 @@ class StoreInfoSerializer(serializers.ModelSerializer):
         instance = Store.objects.create(name=self.validated_data['store_name'],seller=seller)
         return instance
 
-        
-    
+
+class VerifySellerSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(read_only=True)
+    PG_verified = serializers.BooleanField(read_only=True)
+    store_name = serializers.CharField(source='Seller.store.name', read_only=True)
+    location = serializers.CharField(read_only=True)
+    class Meta:
+        model = Seller
+        fields = ['id','location', 'PG_verified', 'app_verified']
+
+class PaymentMethodSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = PaymentMethod
+        fields = ["__all__"]
+
+
+class GetSellerSerializer(CountryFieldMixin,serializers.ModelSerializer):
+    store_name = serializers.CharField(source='Seller.store.name')
+    payment_method = PaymentMethodSerializer(source='pm_sub',) 
+    class Meta:
+        model = Seller
+        fields = ["__all__"]
+
+

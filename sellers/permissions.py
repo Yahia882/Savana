@@ -32,3 +32,11 @@ class IsSeller(BasePermission):
         except Exception:
             raise PermissionDenied(detail="you don't have a seller account")
         return True
+    
+class CanVerify(BasePermission):
+    """
+    Check if authenticated user is owner of the address
+    """
+
+    def has_permission(self, request, view):
+        return request.user.has_perm('sellers.can_verify_seller') or request.user.is_staff

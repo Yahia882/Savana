@@ -273,3 +273,4 @@ class PaymentMethod(models.Model):
     last4 = models.IntegerField()
     exp_month = models.IntegerField()
     exp_year = models.IntegerField()
+    funding = models.CharField(max_length=20, blank=True, null=True)
