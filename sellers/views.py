@@ -166,6 +166,8 @@ class StoreInfo(UpdateCreateAPIView):
     def create(self, request, *args, **kwargs):
         if not request.user.seller.status["store_pm"]:
             return Response({"error": "finish setting your payment method first"}, status=status.HTTP_400_BAD_REQUEST)
+        if request.user.seller.status["store_info"]:
+            return Response({"error": "store info already been set"}, status=status.HTTP_400_BAD_REQUEST)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)

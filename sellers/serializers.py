@@ -59,7 +59,7 @@ class StoreInfoSerializer(serializers.ModelSerializer):
 class VerifySellerSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
     PG_verified = serializers.BooleanField(read_only=True)
-    store_name = serializers.CharField(source='Seller.store.name', read_only=True)
+    store_name = serializers.CharField(source='store.name', read_only=True)
     location = serializers.CharField(read_only=True)
     class Meta:
         model = Seller
