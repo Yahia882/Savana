@@ -50,9 +50,9 @@ class StoreInfoSerializer(serializers.ModelSerializer):
         if Store.objects.filter(name=value).exists():
             raise serializers.ValidationError("A store with this name already exists.")
         return value
-    def create(self):
+    def create(self,validated_data):
         seller = self.context['request'].user.seller
-        instance = Store.objects.create(name=self.validated_data['store_name'],seller=seller)
+        instance = Store.objects.create(name=validated_data['store_name'],seller=seller)
         return instance
 
 
