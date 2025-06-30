@@ -46,7 +46,7 @@ class StoreInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Store
         fields = ["seller",'name']
-    def validate_store_name(self, value):
+    def validate_name(self, value):
         if Store.objects.filter(name=value).exists():
             raise serializers.ValidationError("A store with this name already exists.")
         return value
