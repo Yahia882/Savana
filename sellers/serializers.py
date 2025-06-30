@@ -52,7 +52,7 @@ class StoreInfoSerializer(serializers.ModelSerializer):
         return value
     def create(self,validated_data):
         seller = self.context['request'].user.seller
-        instance = Store.objects.create(name=validated_data['store_name'],seller=seller)
+        instance = Store.objects.create(name=validated_data['name'],seller=seller)
         return instance
 
 
