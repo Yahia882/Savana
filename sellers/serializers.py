@@ -41,7 +41,7 @@ class LocationSerializer(serializers.Serializer):
         return value
     
 class StoreInfoSerializer(serializers.ModelSerializer):
-    store_name = serializers.CharField(max_length=100)
+    name = serializers.CharField(max_length=100)
     seller = serializers.CharField(source = "seller.id",read_only= True)
     class Meta:
         model = Store
