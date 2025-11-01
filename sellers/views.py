@@ -14,14 +14,15 @@ import json
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from .models import Seller, Store
+from .models import Offer, ProductVariation, Seller, SellerProduct, Store, ProductIdentity
 from users.models import Customer, PaymentMethod
-from .serializers import LocationSerializer
+from .serializers import ClothesDetailsSerializer, LocationSerializer, MedictDetailsSerializer, OfferSerializer, OfferWrrapperSerializer, ProductDescriptionSerializer,PublishDraftSerializer, SaveDraftSerializer
 from dj_rest_auth.app_settings import api_settings as rest_auth_api_settings
 from rest_framework import status
-from .serializers import CustomizedJWTSerializer, StoreInfoSerializer, VerifySellerSerializer, GetSellerSerializer
-from .permissions import HasEmail, IsSeller, CanVerify
+from .serializers import CustomizedJWTSerializer, StoreInfoSerializer, VerifySellerSerializer, GetSellerSerializer, ProductIdentitySerializer, ClothesVariationSerializer, MedicalVariationSerializer
+from .permissions import HasEmail, HasNoVariations, HasVariations, IsSeller, CanVerify, ProductInfoCollected
 from .generics import UpdateCreateAPIView, ListRetrieveUpdate
+from rest_framework.exceptions import ValidationError
 # Create your views here.
 stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
 
@@ -78,10 +79,13 @@ class onboarding(APIView):
         })
 
 # clean the redundant code later
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class sellerPaymentMethod (APIView):
     authentication_classes = [SellerJWTCookieAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsSeller, HasEmail]
+
     def put(self, request):
         user = request.user
         if not user.seller.status["onboard"]:
@@ -111,6 +115,7 @@ class sellerPaymentMethod (APIView):
         return Response({
             'customer_session_client_secret': customer_session.client_secret, 'intent_client_secret': intent.client_secret
         })
+
     def post(self, request):
         user = request.user
         if not user.seller.status["onboard"]:
@@ -180,6 +185,7 @@ class StoreInfo(UpdateCreateAPIView):
         seller.location = account["country"]
         seller.status["store_info"] = True
         seller.save()
+
 
 class test_Onboarding(APIView):
     permission_classes = [AllowAny]
@@ -294,7 +300,7 @@ class signup(LoginView):
         for key, value in seller.status.items():
             if value == False:
                 return self.get_response(key)
-        if seller.app_verified == False or seller.stripe_verified == False:
+        if seller.app_verified == False or seller.PG_verified == False:
             return self.get_response("not verified")
 
         return self.get_response("verified")
@@ -425,6 +431,7 @@ def account_webhook_view(request):
 
     return HttpResponse(status=200)
 
+
 @method_decorator(csrf_exempt, name='dispatch')
 class VerifySeller(ListRetrieveUpdate):
     serializer_class = VerifySellerSerializer
@@ -435,6 +442,7 @@ class VerifySeller(ListRetrieveUpdate):
             return GetSellerSerializer
         else:
             return VerifySellerSerializer
+
     def get_queryset(self):
         queryset = Seller.objects.filter(
             PG_verified=True,
@@ -443,4 +451,264 @@ class VerifySeller(ListRetrieveUpdate):
         )
         return queryset
 
+# the process creating a product
 
+
+class ProductIdentityView(GenericAPIView):
+    authentication_classes = [SellerJWTCookieAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = ProductIdentitySerializer
+
+    def get(self, request):
+        seller = request.user.seller
+        try:
+            PI = seller.draft_data['tmp'].get("ProductIdentity", {})
+            return Response(PI)
+        except:
+            return Response({}, status=204)
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+CLOTHES = ['clothes', 'tshirt', 'shoes', 'sports_clothes', 'sports_shoes',]
+MEDICAL = ['medicines', 'medical_equipment', 'medical_supplies',
+           'medical_devices', 'medical_instruments']
+
+
+class VariationParameters(APIView):
+    authentication_classes = [SellerJWTCookieAuthentication]
+    permission_classes = [permissions.IsAuthenticated, HasVariations]
+
+    def get_serializer_class(self):
+        product_type = self.request.user.seller.draft_data['tmp']["ProductIdentity"]["product_type"]
+        if product_type in CLOTHES:
+            return ClothesVariationSerializer
+        elif product_type in MEDICAL:
+            return MedicalVariationSerializer
+        else:
+            return Response({"error": "product type not supported"}, status=400)
+
+    def get(self, request):
+        pv = request.user.seller.draft_data["tmp"]["ProductIdentity"].get(
+            "product_variations", None)
+        if pv is not None:
+            return Response(pv)
+        fields = self.get_serializer_class().get_fields()
+        schema = {}
+        for name, field in fields.items():
+            field_info = {"type": str(field.__class__.__name__)}
+            if hasattr(field, "choices") and field.choices:
+                field_info["choices"] = list(field.choices.keys())
+            schema[name] = field_info
+        return Response(schema)
+
+    def post(self, request):
+        serializer_class = self.get_serializer_class()
+        if serializer_class is None:
+            return Response({"error": "product type not supported"}, status=400)
+        serializer = serializer_class(
+            data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        data = serializer.save()
+        return Response(data)
+
+
+class OneProductOffer(GenericAPIView):
+    authentication_classes = [SellerJWTCookieAuthentication]
+    permission_classes = [permissions.IsAuthenticated, HasNoVariations]
+    serializer_class = OfferSerializer
+
+    def get(self, request):
+        var = request.user.seller.draft_data["tmp"].get(
+            "actual_variations", None)
+        if var:
+            return Response(var["1"])
+        else:
+            print("debug")
+            return Response({})
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.save()
+        return Response(data)
+
+
+class VariationsOffer(GenericAPIView):
+    authentication_classes = [SellerJWTCookieAuthentication]
+    permission_classes = [permissions.IsAuthenticated, HasVariations]
+    serializer_class = OfferWrrapperSerializer
+
+    def get(self, request):
+        var = request.user.seller.draft_data["tmp"].get(
+            "actual_variations", None)
+        if var is not None:
+            return Response(var)
+        else:
+            return Response({}, status=204)
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.validated_data)
+
+
+class ProductDescription(GenericAPIView):
+    authentication_classes = [SellerJWTCookieAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = ProductDescriptionSerializer
+
+    def get(self, request):
+        PI = request.user.seller.draft_data['tmp']["ProductIdentity"]
+        if PI.get("product_description", None) is not None:
+            return Response({"product_description": PI["product_description"], "bullet_points": PI["bullet_points"]})
+        else:
+            return Response({})
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.save()
+        return Response(data)
+
+
+class ProductDetails(GenericAPIView):
+    authentication_classes = [SellerJWTCookieAuthentication]
+    permission_classes = [permissions.IsAuthenticated,]
+
+    def get_serializer_class(self):
+        try:
+            PI = self.request.user.seller.draft_data['tmp']["ProductIdentity"]
+            if PI["has_variations"] and not PI.get("product_variations", None):
+                return ValidationError({"error": "set variation first"})
+        except Exception:
+            raise ValidationError({"error": "set product identity first"})
+        if PI["product_type"] in CLOTHES:
+            return ClothesDetailsSerializer
+        elif PI["product_type"] in MEDICAL:
+            return MedictDetailsSerializer
+        else:
+            raise ValidationError({"error": "product type not supported"})
+
+    def get(self, request):
+        serializer_class = self.get_serializer()
+        PI = self.request.user.seller.draft_data['tmp']["ProductIdentity"]
+        if PI.get("product_details", {}) .get("active_ingredients") is not None:
+            return Response(PI["product_details"])
+        fields = serializer_class.fields
+        schema = {}
+        for name, field in fields.items():
+            field_info = {"type": str(field.__class__.__name__)}
+            if hasattr(field, "choices") and field.choices:
+                field_info["choices"] = list(field.choices.keys())
+            schema[name] = field_info
+        return Response(schema)
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.save()
+        return Response(data)
+
+def save_to_db(seller, data):
+    PI = ProductIdentity.objects.create(**data["ProductIdentity"])
+    SellerProduct.objects.create(
+            seller=seller,
+            product_identity=PI,
+            variations=data["ProductIdentity"].get("product_variations", {}),
+            default = True,
+        )
+    variations = data["actual_variations"]
+    for k in variations.keys():
+        PV = ProductVariation.objects.create(
+            product_identity=PI,
+            upc=variations[k]["UPC"],
+            theme=variations[k]["theme"],
+            default=variations[k].get("default", False)
+        )
+        Offer.objects.create(
+            sku=variations[k]["sku"],
+            price=variations[k]["price"],
+            stock=variations[k]["stock"],
+            PV=PV,
+            seller=seller,
+            fullfillment_channel=variations[k]["fullfilled_by"],
+            condition=variations[k]["condition"],
+        )
+        PI.status = "pending"
+        PI.save()
+        
+
+class PublishProduct(GenericAPIView):
+    authentication_classes = [SellerJWTCookieAuthentication]
+    permission_classes = [permissions.IsAuthenticated, ProductInfoCollected]
+    serializer_class = PublishDraftSerializer
+
+    def post(self, request):
+        seller = request.user.seller
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        draft_name = serializer.validated_data.get('draft_name', None)
+        tmp_data = seller.draft_data.get("tmp", {})
+        if draft_name and tmp_data:
+            return Response({"error": "no product to publish please re-enter product info"}, status=400)
+        if draft_name:
+            data = seller.draft_data.get("draft_products", {}).get(draft_name, None)
+            if data is None:
+                return Response({"error": f"draft name {draft_name} does not exist"}, status=400)
+            save_to_db(seller , data)
+            seller.draft_data["draft_products"].pop(draft_name)
+            seller.save()
+            return Response({"message": f" product will get reviewed soon, we will notify you when the product is approved and published"})
+        else:
+            data = tmp_data
+            save_to_db(seller,data)
+            seller.draft_data["tmp"] = {}
+            seller.save()
+            return Response({"message": f" product will get reviewed soon, we will notify you when the product is approved and published"})
+
+
+class SaveDraft(GenericAPIView):
+    authentication_classes = [SellerJWTCookieAuthentication]
+    permission_classes = [permissions.IsAuthenticated, ProductInfoCollected]
+    serializer_class = SaveDraftSerializer
+
+    def get_permissions(self):
+        permission_classes = []
+        if self.request.method == "POST":
+            permission_classes = [permissions.IsAuthenticated, ProductInfoCollected]
+        else:
+            permission_classes = [permissions.IsAuthenticated]
+        return [permission() for permission in permission_classes]
+
+    def get(self, request, *args, **kwargs):
+        seller = request.user.seller
+        if kwargs.get('pk', None):
+            data = seller.draft_data.get(
+                "draft_products", {}).get(kwargs['pk'], None)
+            return Response(data)
+        drafts = seller.draft_data.get("draft_products", {})
+        draft_names = []
+        for draft_name in drafts.keys():
+            draft_names.append(draft_name)
+        return Response(draft_names)
+
+    def post(self, request):
+        seller = request.user.seller    
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        draft_name = serializer.validated_data['draft_name']
+        if seller.draft_data.get("draft_products", None) is None:
+            seller.draft_data["draft_products"] = {
+                draft_name: seller.draft_data["tmp"]}
+        else:
+            if draft_name.lower() in (k.lower() for k in seller.draft_data["draft_products"].keys()):
+                return Response({"error": "draft name {} already exists".format(draft_name)}, status=400)
+            seller.draft_data["draft_products"][draft_name] = seller.draft_data["tmp"]
+        seller.draft_data["tmp"] = {}
+        seller.save()
+        return Response({"message": f"draft {draft_name} saved successfully"})

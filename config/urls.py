@@ -23,7 +23,9 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('auth/', include('users.urls')),
     path('accounts/', include('allauth.urls')),
-    path("sellers/",include('sellers.urls'))
+    path("sellers/",include('sellers.urls')),
+    path("storefront/",include('storefront.urls')),
+    path("administration/",include('administration.urls')),
 
     # path('dj-rest-auth/', include('dj_rest_auth.urls')),
     # path('dj-rest-auth/registration/', include('dj_rest_auth.registration.urls')),

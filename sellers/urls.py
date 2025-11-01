@@ -15,4 +15,13 @@ urlpatterns = [
     path("platform_acc_webhook/",views.account_webhook_view),
     path("verify_seller/",views.VerifySeller.as_view()),
     path("verify_seller/<int:pk>",views.VerifySeller.as_view()),
+    path("set_product_identity/",views.ProductIdentityView.as_view()),
+    path("set_variation_parameters/",views.VariationParameters.as_view()),
+    path("set_variation_offer/",views.VariationsOffer.as_view()),
+    path("set_one_product_offer/",views.OneProductOffer.as_view()),
+    path("set_product_description/",views.ProductDescription.as_view()),
+    path("set_product_details/",views.ProductDetails.as_view()),
+    path("save_as_draft/",views.SaveDraft.as_view()),
+    path("save_as_draft/<str:pk>/",views.SaveDraft.as_view()),
+    path("publish_product/",views.PublishProduct.as_view()),
 ]
