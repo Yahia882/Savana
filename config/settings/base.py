@@ -295,3 +295,6 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:3000',
     # Add any other development origins you need
 ]
+
+# checkout expiration time in minutes
+checkout_expiration = 30

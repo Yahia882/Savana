@@ -127,6 +127,16 @@ class GetSellerSerializer(CountryFieldMixin, serializers.ModelSerializer):
 
 # product identity step 1 of creating a product
 
+def get_tax_code(product_type):
+    tax_code_mapping = {
+        "over_the_counter_drugs": "txcd_32020002",
+        "prescription_drugs": "txcd_32020001",
+        "medical_supplies": "txcd_32070028",
+        "clothes": "txcd_30011000",
+        "tshirt": "txcd_30011000",
+        "shoes": "txcd_30011000",
+    }
+    return tax_code_mapping.get(product_type, "txcd_32020002")
 
 class ProductIdentitySerializer(serializers.Serializer):
     item_name = serializers.CharField(max_length=100)
@@ -139,6 +149,7 @@ class ProductIdentitySerializer(serializers.Serializer):
     def save(self):
         seller = self.context['request'].user.seller
         seller.draft_data['tmp'] = {"ProductIdentity": self.validated_data}
+        seller.draft_data['tmp']["ProductIdentity"].update({"tax_code": get_tax_code(self.validated_data['product_type'])})
         seller.save()
 
 # product variation also part of step 1 u select one serilizer based on product type that logic is implemented in the view
@@ -454,7 +465,7 @@ class MedictDetailsSerializer(serializers.Serializer):
     expiry_date = serializers.CharField(max_length=20)
     manufacturer = serializers.CharField(max_length=100,required = False)
     regulatory_approval = serializers.CharField(max_length=100,required = False)
-    prescription_status = serializers.CharField(max_length=100,required = False)
+    prescription_status = serializers.CharField(max_length = 100,required = False)
 
     def __init__(self, instance=None, data=..., **kwargs):
         super().__init__(instance, data, **kwargs)

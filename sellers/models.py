@@ -12,7 +12,9 @@ BRAND_CHOICES = (
 )
 PRODUCT_TYPE_CHOICES = (
     # at the mean time only implemet med, clothes and shoes
-    ("medicines", "Medicines"),
+    ("over_the_counter_drugs", "Drugs -> Over The Counter Drugs"),
+    ("prescription_drugs", "Drugs -> Prescription Drugs"),
+    ("medical_supplies", "Medicines -> Medical Supplies"),
     ("clothes", "Clothes"),
     ("tshirt", "Clothes -> T-Shirt"),
     ("shoes", "Shoes"),
@@ -106,6 +108,8 @@ class ProductIdentity(models.Model):
         default="draft",
         db_index=True   # important for performance
     )
+    tax_code = models.CharField(max_length=20, default="txcd_32020002")
+    sripe_product_id = models.CharField(max_length=100, blank=True, null=True)
     class Meta:
         permissions = [
             ("can_change_status", "Can Change Status"),
@@ -160,7 +164,8 @@ class Offer(models.Model):
          max_length=50, choices=PRODUCT_CONDITION_CHOICES, default='new')
     fullfillment_channel = models.CharField(
         max_length=50, choices=[('FBM', 'Fulfilled by Merchant'), ('FBA', 'Fulfilled by Amazon')], default='FBM')
-
+    discounted_price = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True)
     class Meta:
         unique_together = ('PV', 'seller')
 

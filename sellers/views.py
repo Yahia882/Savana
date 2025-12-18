@@ -23,9 +23,22 @@ from .serializers import CustomizedJWTSerializer, StoreInfoSerializer, VerifySel
 from .permissions import HasEmail, HasNoVariations, HasVariations, IsSeller, CanVerify, ProductInfoCollected
 from .generics import UpdateCreateAPIView, ListRetrieveUpdate
 from rest_framework.exceptions import ValidationError
+from storefront.models import CheckoutItem,Checkout
 # Create your views here.
 stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
-
+# manually set the tax code and behavior for products sold through the platform
+settings = stripe.tax.Settings.modify(
+  defaults={"tax_behavior": "exclusive", "tax_code": "txcd_10000000"},
+  head_office = {
+    "address": {
+        "line1": "420 5th Ave", 
+        "city": "New York", 
+        "state": "NY", 
+        "postal_code": "10018", 
+        "country": "US"
+    }
+}
+)
 
 @method_decorator(csrf_exempt, name='dispatch')
 class onboarding(APIView):
@@ -425,7 +438,23 @@ def account_webhook_view(request):
     elif event.type == 'payment_method.attached':
         payment_method = event.data.object  # contains a stripe.PaymentMethod
         print('PaymentMethod was attached to a Customer!')
-    # ... handle other event types
+    elif event.type == 'checkout.session.completed':
+        session = event.data.object
+        line_items = stripe.checkout.Session.list_line_items(
+            session.id,
+            limit = 100,
+        )
+        checkout_instance = Checkout.objects.get(payment_session_id = session.id)
+        checkout_instance.tax = session["total_details"]["amount_tax"]
+        checkout_instance.final_total= session["amount_total"]
+        checkout_instance.shipping_cost = session["total_details"]["amount_shipping"]
+        checkout_instance.discount = session["total_details"]["amount_discount"]
+        checkout_instance.save()
+        for item in line_items:
+            instance =CheckoutItem.objects.get(line_item_id = item["data"]["id"])
+            instance.tax = item["data"]["taxes"]
+            instance.total =item["data"]["amount_total"]
+            instance.save()
     else:
         print('Unhandled event type {}'.format(event.type))
 
